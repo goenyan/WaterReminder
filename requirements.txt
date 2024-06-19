@@ -3,3 +3,4 @@ plyer
 ttkbootstrap
 Pillow
 pygame
+pystray
