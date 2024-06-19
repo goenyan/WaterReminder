@@ -1,0 +1,5 @@
+datetime
+plyer
+ttkbootstrap
+Pillow
+pygame
