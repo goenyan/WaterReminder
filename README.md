@@ -15,19 +15,13 @@ This Python application helps you stay hydrated by reminding you to drink water 
 1. **Installation:**
    - Clone the repository:
      ```
-     git clone https://github.com/your-username/water-reminder.git
+     git clone https://github.com/goenyan/WaterReminder.git
      ```
-   - Navigate to the project directory:
-     ```
-     cd water-reminder
-     ```
+   - Navigate to the project directory.
 
 2. **Usage:**
-   - Run the application:
-     ```
-     python water_reminder.py
-     ```
-	 Or just need to run the `run.bat` file
+   - Run `Install.bat` to install required modules
+   - Run `run.bat` to launch the application:
    - Follow the prompts to set your preferences for running time, reminder interval, and daily goal.
 
 3. **Logging:**
