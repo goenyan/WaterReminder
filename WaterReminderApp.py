@@ -7,10 +7,10 @@ import threading
 import os
 import json
 import ttkbootstrap as ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageGrab
+import webbrowser
 import pystray
 from pystray import MenuItem as item
-import webbrowser
 
 # Scheduler for reminders
 scheduler = sched.scheduler(time.time, time.sleep)
@@ -49,7 +49,7 @@ class WaterReminderApp:
         self.root.iconphoto(False, tk.PhotoImage(file="Icon.png"))
 
         # Set minimum size
-        self.root.minsize(500, 850)
+        self.root.minsize(400, 800)
 
         # Center the window on the screen
         window_width = 400
@@ -79,88 +79,99 @@ class WaterReminderApp:
 
         # Add logo placeholder
         self.logo_image = Image.open("logo.png")
-        self.logo_image = self.logo_image.resize((300, 150), Image.LANCZOS)
+        self.logo_image = self.logo_image.resize((300, 150), Image.LANCZOS)  # Updated from Image.ANTIALIAS
         self.logo_photo = ImageTk.PhotoImage(self.logo_image)
         self.logo_label = tk.Label(root, image=self.logo_photo)
         self.logo_label.grid(row=0, column=0, padx=10, pady=10, columnspan=4)
 
-        # Add Start Time
-        self.start_time_label = ttk.Label(self.root, text="Start Time (HH:MM):")
-        self.start_time_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.total_water_drank = 0.0
+        self.daily_goal = user_settings["daily_goal"]
+
+        # Create the input fields and labels
+        self.create_widgets()
+
+        self.update_water_drank_label()
+        self.update_remaining_label()
+
+        # Display log messages
+        self.display_log_messages()
+
+        # Bind close window event
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # System Tray Icon
+        self.tray_icon = pystray.Icon("WaterReminderApp")
+        self.tray_image = Image.open("Icon.png")
+        self.tray_icon.icon = self.tray_image
+        self.tray_icon.menu = pystray.Menu(
+            item('Open', self.show_window),
+            item('Quit', self.on_closing_tray)
+        )
+
+    def create_widgets(self):
+        # Start Time
+        tk.Label(self.root, text="Start Time (HH:MM)").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
         self.start_time_entry = ttk.Entry(self.root)
-        self.start_time_entry.grid(row=1, column=1, padx=5, pady=5)
         self.start_time_entry.insert(0, user_settings["start_time"])
+        self.start_time_entry.grid(row=1, column=1, padx=10, pady=5)
 
-        # Add End Time
-        self.end_time_label = ttk.Label(self.root, text="End Time (HH:MM):")
-        self.end_time_label.grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        # End Time
+        tk.Label(self.root, text="End Time (HH:MM)").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
         self.end_time_entry = ttk.Entry(self.root)
-        self.end_time_entry.grid(row=2, column=1, padx=5, pady=5)
         self.end_time_entry.insert(0, user_settings["end_time"])
+        self.end_time_entry.grid(row=2, column=1, padx=10, pady=5)
 
-        # Add Interval
-        self.interval_label = ttk.Label(self.root, text="Interval (minutes):")
-        self.interval_label.grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        # Interval
+        tk.Label(self.root, text="Interval (minutes)").grid(row=3, column=0, sticky=tk.W, padx=10, pady=5)
         self.interval_entry = ttk.Entry(self.root)
-        self.interval_entry.grid(row=3, column=1, padx=5, pady=5)
         self.interval_entry.insert(0, user_settings["interval"])
+        self.interval_entry.grid(row=3, column=1, padx=10, pady=5)
 
-        # Add Daily Goal
-        self.daily_goal_label = ttk.Label(self.root, text="Daily Goal (liters):")
-        self.daily_goal_label.grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        # Daily Goal
+        tk.Label(self.root, text="Daily Goal (liters)").grid(row=4, column=0, sticky=tk.W, padx=10, pady=5)
         self.daily_goal_entry = ttk.Entry(self.root)
-        self.daily_goal_entry.grid(row=4, column=1, padx=5, pady=5)
         self.daily_goal_entry.insert(0, user_settings["daily_goal"])
+        self.daily_goal_entry.grid(row=4, column=1, padx=10, pady=5)
 
-        # Add Reminder Amount
-        self.reminder_amount_label = ttk.Label(self.root, text="Reminder Amount (liters):")
-        self.reminder_amount_label.grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        # Reminder Amount
+        tk.Label(self.root, text="Reminder Amount (liters)").grid(row=5, column=0, sticky=tk.W, padx=10, pady=5)
         self.reminder_amount_entry = ttk.Entry(self.root)
-        self.reminder_amount_entry.grid(row=5, column=1, padx=5, pady=5)
         self.reminder_amount_entry.insert(0, user_settings["reminder_amount"])
+        self.reminder_amount_entry.grid(row=5, column=1, padx=10, pady=5)
 
-        # Add Start with Windows checkbox
-        self.start_with_windows_var = tk.BooleanVar()
-        self.start_with_windows_check = ttk.Checkbutton(
-            self.root, text="Start with Windows", variable=self.start_with_windows_var)
-        self.start_with_windows_check.grid(
-            row=6, column=0, columnspan=2, padx=5, pady=5)
-        self.start_with_windows_var.set(user_settings["start_with_windows"])
+        # Start with Windows
+        self.start_with_windows_var = tk.BooleanVar(value=user_settings["start_with_windows"])
+        self.start_with_windows_check = ttk.Checkbutton(self.root, text="Start with Windows", variable=self.start_with_windows_var)
+        self.start_with_windows_check.grid(row=6, column=0, columnspan=2, pady=5)
 
-        # Add Save Button
-        self.save_button = ttk.Button(
-            self.root, text="Save Settings", command=self.save_settings)
+        # Water Drank Label
+        self.water_drank_label = tk.Label(self.root, text=f"Water Drank: {self.total_water_drank} liters")
+        self.water_drank_label.grid(row=7, column=0, columnspan=2, pady=5)
+
+        # Remaining Label
+        self.remaining_label = tk.Label(self.root, text="")
+        self.remaining_label.grid(row=8, column=0, columnspan=2, pady=5)
+
+        # Save Button
+        self.save_button = ttk.Button(self.root, text="Save Settings", command=self.save_settings)
         self.save_button.grid(row=9, column=0, pady=10, padx=10, sticky=tk.EW)
 
-        # Add "Drink Water" Button
-        self.drink_water_button = ttk.Button(
-            self.root, text="Drink Water", command=self.drink_water)
+        # Drink Water Button
+        self.drink_water_button = ttk.Button(self.root, text="Drink Water", command=self.drink_water_action)
         self.drink_water_button.grid(row=9, column=1, padx=10, pady=10, sticky=tk.EW)
 
-        # Add "Clear Log" Button
-        self.clear_log_button = ttk.Button(
-            self.root, text="Clear Log", command=self.clear_log)
-        self.clear_log_button.grid(row=9, column=2, padx=10, pady=10, sticky=tk.EW)
+        # Clear Logs Button
+        self.clear_logs_button = ttk.Button(self.root, text="Clear Logs", command=self.clear_logs_action)
+        self.clear_logs_button.grid(row=9, column=2, padx=10, pady=10, sticky=tk.EW)
 
-        # Add Drank Amount Label
-        self.drank_amount_label = ttk.Label(self.root, text="Drank Amount: 0.0 liters")
-        self.drank_amount_label.grid(row=7, column=0, columnspan=2, pady=5)
-
-        # Add Remaining Amount Label
-        self.remaining_amount_label = ttk.Label(self.root, text="Remaining Amount: 2.0 liters")
-        self.remaining_amount_label.grid(row=8, column=0, columnspan=2, pady=5)
-
-        # Add Log View
-        self.log_view_label = ttk.Label(self.root, text="Water Intake Log:")
-        self.log_view_label.grid(row=10, column=0, columnspan=2, padx=5, pady=5)
-        self.log_view = scrolledtext.ScrolledText(
-            self.root, width=40, height=10, state='disabled')
-        self.log_view.grid(row=11, column=0, columnspan=4, padx=5, pady=5)
-        self.update_log_view()
+        # Log Messages
+        tk.Label(self.root, text="Log Messages").grid(row=10, column=0, columnspan=3, sticky=tk.W, padx=10)
+        self.log_text = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, width=60, height=10)
+        self.log_text.grid(row=11, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
 
         # Social and GitHub icons with hyperlinks
         self.social_frame = tk.Frame(self.root)
-        self.social_frame.grid(row=12, column=0, columnspan=4, pady=10)
+        self.social_frame.grid(row=12, column=0, columnspan=3, pady=10)
 
         self.github_icon = tk.Label(self.social_frame, text="GitHub", fg="blue", cursor="hand2")
         self.github_icon.grid(row=0, column=0, padx=5)
@@ -178,7 +189,12 @@ class WaterReminderApp:
         self.linkedin_icon.grid(row=0, column=3, padx=5)
         self.linkedin_icon.bind("<Button-1>", lambda e: self.open_url("https://hsrwarp.mimiakane.com/"))
 
-        self.create_tray_icon()
+    def update_water_drank_label(self):
+        self.water_drank_label.config(text=f"Water Drank: {self.total_water_drank} liters")
+
+    def update_remaining_label(self):
+        remaining = self.daily_goal - self.total_water_drank
+        self.remaining_label.config(text=f"Remaining: {remaining} liters")
 
     def save_settings(self):
         user_settings["start_time"] = self.start_time_entry.get()
@@ -188,95 +204,94 @@ class WaterReminderApp:
         user_settings["reminder_amount"] = float(self.reminder_amount_entry.get())
         user_settings["start_with_windows"] = self.start_with_windows_var.get()
         save_user_settings()
-        self.schedule_reminders()
         messagebox.showinfo("Settings Saved", "Your settings have been saved.")
 
-    def update_log_view(self):
+        if user_settings["start_with_windows"]:
+            add_to_startup()
+        else:
+            remove_from_startup()
+
+    def drink_water_action(self):
+        amount = float(self.reminder_amount_entry.get())
+        self.total_water_drank += amount
+        with open(log_file, "a") as f:
+            f.write(f"{datetime.now()}: Drank {amount} liters\n")
+        self.update_water_drank_label()
+        self.update_remaining_label()
+        self.display_log_messages()
+
+    def clear_logs_action(self):
+        open(log_file, 'w').close()  # Clear the log file
+        self.display_log_messages()
+
+    def display_log_messages(self):
+        self.log_text.delete('1.0', tk.END)
         if os.path.exists(log_file):
             with open(log_file, "r") as f:
                 log_content = f.read()
-        else:
-            log_content = ""
-        self.log_view.configure(state='normal')
-        self.log_view.delete(1.0, tk.END)
-        self.log_view.insert(tk.INSERT, log_content)
-        self.log_view.configure(state='disabled')
+                self.log_text.insert(tk.END, log_content)
 
-    def schedule_reminders(self):
-        # Cancel all scheduled reminders first
-        for event in scheduler.queue:
-            scheduler.cancel(event)
-
+    def schedule_initial_reminder(self):
+        now = datetime.now()
         start_time = datetime.strptime(user_settings["start_time"], "%H:%M").time()
         end_time = datetime.strptime(user_settings["end_time"], "%H:%M").time()
-        now = datetime.now()
-
-        start_datetime = datetime.combine(now.date(), start_time)
-        end_datetime = datetime.combine(now.date(), end_time)
         interval = timedelta(minutes=user_settings["interval"])
 
-        current_time = now
-        while current_time < end_datetime:
-            if current_time > start_datetime:
-                scheduler.enterabs(time.mktime(current_time.timetuple()), 1, self.show_reminder)
-            current_time += interval
+        # Calculate the next reminder time
+        next_reminder_time = (now + interval).replace(second=0, microsecond=0)
 
-        threading.Thread(target=scheduler.run).start()
+        # Schedule the first reminder within the set period
+        if start_time <= next_reminder_time.time() <= end_time:
+            delay = (next_reminder_time - now).total_seconds()
+            scheduler.enter(delay, 1, self.send_reminder)
+            threading.Thread(target=run_scheduler, daemon=True).start()
 
-    def show_reminder(self):
-        messagebox.showinfo("Water Reminder", "Time to drink water!")
+    def send_reminder(self):
+        start_time = datetime.strptime(user_settings["start_time"], "%H:%M").time()
+        end_time = datetime.strptime(user_settings["end_time"], "%H:%M").time()
+        interval = timedelta(minutes=user_settings["interval"])
 
-    def create_tray_icon(self):
-        icon_image = Image.open("Icon.png")
-        menu = (item('Open', self.show_window), item('Quit', self.quit_app))
-        self.tray_icon = pystray.Icon("WaterReminderApp", icon_image, "Water Reminder", menu)
-        threading.Thread(target=self.tray_icon.run).start()
+        # Show the reminder message box
+        self.show_reminder_messagebox()
+
+        # Schedule the next reminder within the set period
+        now = datetime.now()
+        next_reminder_time = (now + interval).replace(second=0, microsecond=0)
+        if start_time <= next_reminder_time.time() <= end_time:
+            delay = (next_reminder_time - now).total_seconds()
+            scheduler.enter(delay, 1, self.send_reminder)
+
+    def show_reminder_messagebox(self):
+        response = messagebox.showinfo("Water Reminder", "Time to drink water!")
+        if response == 'ok':
+            self.drink_water_action()
+
+    def open_url(self, url):
+        webbrowser.open_new(url)
+
+    def on_closing(self):
+        if messagebox.askyesno("Minimize to tray", "Do you want to minimize the app to the system tray?"):
+            self.hide_window()
+        else:
+            self.root.destroy()
+
+    def hide_window(self):
+        self.root.withdraw()
+        self.tray_icon.run()
 
     def show_window(self, icon, item):
         self.root.deiconify()
-
-    def quit_app(self, icon, item):
         self.tray_icon.stop()
-        self.root.quit()
 
-    def open_url(self, url):
-        webbrowser.open(url)
+    def on_closing_tray(self, icon, item):
+        self.root.destroy()
+        self.tray_icon.stop()
 
-    def hide_window(self):
-        if messagebox.askyesno("Minimize to Tray", "Do you want to minimize to the system tray instead of closing?"):
-            self.root.withdraw()
-        else:
-            self.quit_app(None, None)
-
-    def drink_water(self):
-        # Update drank amount and remaining amount labels
-        current_drank = float(self.drank_amount_label.cget("text").split()[2])
-        drank_amount = current_drank + user_settings["reminder_amount"]
-        remaining_amount = user_settings["daily_goal"] - drank_amount
-
-        # Update labels
-        self.drank_amount_label.config(text=f"Drank Amount: {drank_amount:.2f} liters")
-        self.remaining_amount_label.config(text=f"Remaining Amount: {remaining_amount:.2f} liters")
-
-        # Log the water intake
-        now = datetime.now()
-        log_entry = f"{now.strftime('%Y-%m-%d %H:%M:%S')} - Drank {user_settings['reminder_amount']:.2f} liters\n"
-        with open(log_file, "a") as f:
-            f.write(log_entry)
-
-        # Update log view
-        self.update_log_view()
-
-    def clear_log(self):
-        # Clear the log file
-        open(log_file, 'w').close()
-
-        # Update log view
-        self.update_log_view()
-        messagebox.showinfo("Log Cleared", "Water intake log has been cleared.")
+def run_scheduler():
+    scheduler.run()
 
 if __name__ == "__main__":
     root = ttk.Window(themename="cosmo")
     app = WaterReminderApp(root)
-    root.protocol("WM_DELETE_WINDOW", app.hide_window)
+    app.schedule_initial_reminder()
     root.mainloop()

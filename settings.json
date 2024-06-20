@@ -1,1 +1,1 @@
-{"start_time": "09:00", "end_time": "20:00", "interval": 60, "daily_goal": 4.0, "reminder_amount": 0.25, "start_with_windows": false}
+{"start_time": "09:00", "end_time": "20:00", "interval": 60, "daily_goal": 4.0, "reminder_amount": 0.25, "start_with_windows": true}
