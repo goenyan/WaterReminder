@@ -4,3 +4,6 @@ ttkbootstrap
 Pillow
 pygame
 pystray
+pywin32
+winshell
+win10toast

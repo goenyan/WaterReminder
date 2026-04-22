@@ -11,6 +11,10 @@ from PIL import Image, ImageTk, ImageGrab
 import webbrowser
 import pystray
 from pystray import MenuItem as item
+import sys
+import winshell
+from win32com.client import Dispatch
+from win10toast import ToastNotifier
 
 # Scheduler for reminders
 scheduler = sched.scheduler(time.time, time.sleep)
@@ -38,6 +42,34 @@ log_file = "water_intake_log.txt"
 def save_user_settings():
     with open(settings_file, "w") as f:
         json.dump(user_settings, f)
+        
+# Start with Windows
+def add_to_startup():
+    # Windows Startup folder path
+    startup = winshell.startup()
+
+    # Path to this script
+    script_path = os.path.abspath(__file__)
+    # Python executable currently running
+    python_exe = sys.executable
+
+    # Shortcut name
+    shortcut_path = os.path.join(startup, "WaterReminder.lnk")
+
+    shell = Dispatch('WScript.Shell')
+    shortcut = shell.CreateShortCut(shortcut_path)
+    shortcut.Targetpath = python_exe          # run python
+    shortcut.Arguments = f'"{script_path}"'   # with this script as argument
+    shortcut.WorkingDirectory = os.path.dirname(script_path)
+    shortcut.IconLocation = os.path.join(os.path.dirname(script_path), "Icon.ico")
+    shortcut.save()
+
+# Disable Start with Windows
+def remove_from_startup():
+    startup = winshell.startup()
+    shortcut_path = os.path.join(startup, "WaterReminder.lnk")
+    if os.path.exists(shortcut_path):
+        os.remove(shortcut_path)
 
 # HUD class
 class WaterReminderApp:
@@ -79,7 +111,7 @@ class WaterReminderApp:
 
         # Add logo placeholder
         self.logo_image = Image.open("logo.png")
-        self.logo_image = self.logo_image.resize((300, 150), Image.LANCZOS)  # Updated from Image.ANTIALIAS
+        self.logo_image = self.logo_image.resize((300, 150), Image.Resampling.LANCZOS)
         self.logo_photo = ImageTk.PhotoImage(self.logo_image)
         self.logo_label = tk.Label(root, image=self.logo_photo)
         self.logo_label.grid(row=0, column=0, padx=10, pady=10, columnspan=4)
@@ -107,6 +139,8 @@ class WaterReminderApp:
             item('Open', self.show_window),
             item('Quit', self.on_closing_tray)
         )
+        # Windows Notification
+        self.notifier = ToastNotifier()
 
     def create_widgets(self):
         # Start Time
@@ -252,7 +286,13 @@ class WaterReminderApp:
         interval = timedelta(minutes=user_settings["interval"])
 
         # Show the reminder message box
-        self.show_reminder_messagebox()
+        self.notifier.show_toast(
+        "Water Reminder",
+        "Time to drink water!",
+        icon_path="Icon.ico",  # or None / a valid .ico path
+        duration=5,            # seconds
+        threaded=True
+        )
 
         # Schedule the next reminder within the set period
         now = datetime.now()
