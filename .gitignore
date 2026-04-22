@@ -3,3 +3,6 @@
 water_intake_log.txt
 settings.json
 water_intake_log.txt
+/build
+WaterReminderApp.spec
+/dist

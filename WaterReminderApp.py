@@ -45,23 +45,22 @@ def save_user_settings():
         
 # Start with Windows
 def add_to_startup():
-    # Windows Startup folder path
     startup = winshell.startup()
 
-    # Path to this script
-    script_path = os.path.abspath(__file__)
-    # Python executable currently running
-    python_exe = sys.executable
+    # If running from exe, use that; otherwise fall back to script
+    if getattr(sys, 'frozen', False):
+        exe_path = sys.executable  # path to WaterReminderApp.exe
+    else:
+        exe_path = os.path.abspath(__file__)  # running from .py
 
-    # Shortcut name
     shortcut_path = os.path.join(startup, "WaterReminder.lnk")
 
     shell = Dispatch('WScript.Shell')
     shortcut = shell.CreateShortCut(shortcut_path)
-    shortcut.Targetpath = python_exe          # run python
-    shortcut.Arguments = f'"{script_path}"'   # with this script as argument
-    shortcut.WorkingDirectory = os.path.dirname(script_path)
-    shortcut.IconLocation = os.path.join(os.path.dirname(script_path), "Icon.ico")
+    shortcut.Targetpath = exe_path
+    shortcut.WorkingDirectory = os.path.dirname(exe_path)
+    shortcut.IconLocation = resource_path("Icon.ico")
+    shortcut.IconLocation = exe_path
     shortcut.save()
 
 # Disable Start with Windows
@@ -78,7 +77,7 @@ class WaterReminderApp:
         self.root.title("Water Reminder")
 
         # Add app icon
-        self.root.iconphoto(False, tk.PhotoImage(file="Icon.png"))
+        self.root.iconphoto(False, tk.PhotoImage(file=resource_path("Icon.png")))
 
         # Set minimum size
         self.root.minsize(400, 800)
@@ -110,7 +109,7 @@ class WaterReminderApp:
         self.root.grid_rowconfigure(10, weight=1)
 
         # Add logo placeholder
-        self.logo_image = Image.open("logo.png")
+        self.logo_image = Image.open(resource_path("logo.png"))
         self.logo_image = self.logo_image.resize((300, 150), Image.Resampling.LANCZOS)
         self.logo_photo = ImageTk.PhotoImage(self.logo_image)
         self.logo_label = tk.Label(root, image=self.logo_photo)
@@ -133,7 +132,7 @@ class WaterReminderApp:
 
         # System Tray Icon
         self.tray_icon = pystray.Icon("WaterReminderApp")
-        self.tray_image = Image.open("Icon.png")
+        self.tray_image = Image.open(resource_path("Icon.png"))
         self.tray_icon.icon = self.tray_image
         self.tray_icon.menu = pystray.Menu(
             item('Open', self.show_window),
@@ -302,9 +301,13 @@ class WaterReminderApp:
             scheduler.enter(delay, 1, self.send_reminder)
 
     def show_reminder_messagebox(self):
-        response = messagebox.showinfo("Water Reminder", "Time to drink water!")
-        if response == 'ok':
-            self.drink_water_action()
+        self.notifier.show_toast(
+            "Water Reminder",
+            "Time to drink water!",
+            icon_path=resource_path("Icon.ico"),
+            duration=5,
+            threaded=True
+        )
 
     def open_url(self, url):
         webbrowser.open_new(url)
@@ -329,6 +332,14 @@ class WaterReminderApp:
 
 def run_scheduler():
     scheduler.run()
+
+def resource_path(relative_path):
+    # For PyInstaller
+    if hasattr(sys, "_MEIPASS"):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 if __name__ == "__main__":
     root = ttk.Window(themename="cosmo")
