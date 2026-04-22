@@ -117,6 +117,7 @@ class WaterReminderApp:
 
         self.total_water_drank = 0.0
         self.daily_goal = user_settings["daily_goal"]
+        self.next_reminder_time = None
 
         # Create the input fields and labels
         self.create_widgets()
@@ -184,27 +185,29 @@ class WaterReminderApp:
         # Remaining Label
         self.remaining_label = tk.Label(self.root, text="")
         self.remaining_label.grid(row=8, column=0, columnspan=2, pady=5)
+        self.countdown_label = tk.Label(self.root, text="Next reminder in: --:--")
+        self.countdown_label.grid(row=9, column=0, columnspan=2, pady=5)
 
         # Save Button
         self.save_button = ttk.Button(self.root, text="Save Settings", command=self.save_settings)
-        self.save_button.grid(row=9, column=0, pady=10, padx=10, sticky=tk.EW)
+        self.save_button.grid(row=10, column=0, pady=10, padx=10, sticky=tk.EW)
 
         # Drink Water Button
         self.drink_water_button = ttk.Button(self.root, text="Drink Water", command=self.drink_water_action)
-        self.drink_water_button.grid(row=9, column=1, padx=10, pady=10, sticky=tk.EW)
+        self.drink_water_button.grid(row=10, column=1, padx=10, pady=10, sticky=tk.EW)
 
         # Clear Logs Button
         self.clear_logs_button = ttk.Button(self.root, text="Clear Logs", command=self.clear_logs_action)
-        self.clear_logs_button.grid(row=9, column=2, padx=10, pady=10, sticky=tk.EW)
+        self.clear_logs_button.grid(row=10, column=2, padx=10, pady=10, sticky=tk.EW)
 
         # Log Messages
-        tk.Label(self.root, text="Log Messages").grid(row=10, column=0, columnspan=3, sticky=tk.W, padx=10)
+        tk.Label(self.root, text="Log Messages").grid(row=11, column=0, columnspan=3, sticky=tk.W, padx=10)
         self.log_text = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, width=60, height=10)
-        self.log_text.grid(row=11, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
+        self.log_text.grid(row=12, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
 
         # Social and GitHub icons with hyperlinks
         self.social_frame = tk.Frame(self.root)
-        self.social_frame.grid(row=12, column=0, columnspan=3, pady=10)
+        self.social_frame.grid(row=13, column=0, columnspan=3, pady=10)
 
         self.github_icon = tk.Label(self.social_frame, text="GitHub", fg="blue", cursor="hand2")
         self.github_icon.grid(row=0, column=0, padx=5)
@@ -229,6 +232,36 @@ class WaterReminderApp:
         remaining = self.daily_goal - self.total_water_drank
         self.remaining_label.config(text=f"Remaining: {remaining} liters")
 
+    def show_settings_saved_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Settings Saved")
+        dialog.iconphoto(False, tk.PhotoImage(file=resource_path("Icon.png")))
+        dialog.resizable(False, False)
+        dialog.grab_set()  # modal
+
+    # Message
+        label = tk.Label(dialog, text="Your settings have been saved.")
+        label.pack(padx=20, pady=15)
+
+    # OK button
+        def close_dialog():
+            if dialog.winfo_exists():
+                dialog.destroy()
+
+        ok_button = ttk.Button(dialog, text="OK", command=close_dialog)
+        ok_button.pack(pady=(0, 15))
+
+    # Center over parent
+        dialog.update_idletasks()
+        w = dialog.winfo_width()
+        h = dialog.winfo_height()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+    # Auto-close after 3 seconds (3000 ms)
+        dialog.after(3000, close_dialog)
+
     def save_settings(self):
         user_settings["start_time"] = self.start_time_entry.get()
         user_settings["end_time"] = self.end_time_entry.get()
@@ -237,7 +270,8 @@ class WaterReminderApp:
         user_settings["reminder_amount"] = float(self.reminder_amount_entry.get())
         user_settings["start_with_windows"] = self.start_with_windows_var.get()
         save_user_settings()
-        messagebox.showinfo("Settings Saved", "Your settings have been saved.")
+
+        self.show_settings_saved_dialog()
 
         if user_settings["start_with_windows"]:
             add_to_startup()
@@ -275,30 +309,50 @@ class WaterReminderApp:
 
         # Schedule the first reminder within the set period
         if start_time <= next_reminder_time.time() <= end_time:
+            self.next_reminder_time = next_reminder_time
             delay = (next_reminder_time - now).total_seconds()
             scheduler.enter(delay, 1, self.send_reminder)
             threading.Thread(target=run_scheduler, daemon=True).start()
+
+        # Start countdown updates
+        self.update_countdown_label()
+
+    def update_countdown_label(self):
+        if self.next_reminder_time is None:
+            self.countdown_label.config(text="Next reminder in: --:--")
+        else:
+            now = datetime.now()
+            delta = self.next_reminder_time - now
+            total_seconds = int(delta.total_seconds())
+            if total_seconds <= 0:
+                # will be triggered any moment by scheduler
+                self.countdown_label.config(text="Next reminder in: 00:00")
+            else:
+                minutes, seconds = divmod(total_seconds, 60)
+                self.countdown_label.config(
+                    text=f"Next reminder in: {minutes:02d}:{seconds:02d}"
+                )
+
+        # Call again after 1 second
+        self.root.after(1000, self.update_countdown_label)
 
     def send_reminder(self):
         start_time = datetime.strptime(user_settings["start_time"], "%H:%M").time()
         end_time = datetime.strptime(user_settings["end_time"], "%H:%M").time()
         interval = timedelta(minutes=user_settings["interval"])
 
-        # Show the reminder message box
-        self.notifier.show_toast(
-        "Water Reminder",
-        "Time to drink water!",
-        icon_path="Icon.ico",  # or None / a valid .ico path
-        duration=5,            # seconds
-        threaded=True
-        )
+        # Show the notification
+        self.show_reminder_messagebox()
 
         # Schedule the next reminder within the set period
         now = datetime.now()
         next_reminder_time = (now + interval).replace(second=0, microsecond=0)
         if start_time <= next_reminder_time.time() <= end_time:
+            self.next_reminder_time = next_reminder_time
             delay = (next_reminder_time - now).total_seconds()
             scheduler.enter(delay, 1, self.send_reminder)
+        else:
+            self.next_reminder_time = None  # no more reminders today
 
     def show_reminder_messagebox(self):
         self.notifier.show_toast(
