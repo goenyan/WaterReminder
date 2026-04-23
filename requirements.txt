@@ -8,3 +8,4 @@ pywin32
 winshell
 win10toast
 PyInstaller
+pygame
