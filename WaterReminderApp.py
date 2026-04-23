@@ -14,6 +14,8 @@ import winshell
 from win32com.client import Dispatch
 from win10toast import ToastNotifier
 import pygame
+import tkinter.font as tkfont
+from pathlib import Path
 
 # ---------- Paths and sound setup ----------
 
@@ -35,7 +37,8 @@ default_settings = {
     "daily_goal": 2.0,  # in liters
     "reminder_amount": 0.25,  # in liters
     "start_with_windows": False,
-    "sound_file": "cute-gugu-gaga.mp3"
+    "sound_file": "cute-gugu-gaga.mp3",
+    "default_language": "en"
 }
 
 settings_file = "settings.json"
@@ -55,7 +58,61 @@ def save_user_settings():
     with open(settings_file, "w") as f:
         json.dump(user_settings, f)
 
+# ---------- Language Settings ----------
 
+import locale
+
+LOCALES_DIR = os.path.join(BASE_DIR, "locales")
+current_lang = user_settings.get("default_language", "en-US")
+translations = {}
+
+LANG_FILES = {
+    "en-US": "en-US.json",
+    "ja-JP": "ja-JP.json",
+    "vi-VN": "vi-VN.json",
+    "zh-CN": "zh-CN.json",
+    "zh-TW": "zh-TW.json",
+    "ph-PH": "ph-PH.json",
+    "id-ID": "id-ID.json",
+    "ko-KR": "ko-KR.json"
+}
+
+DISPLAY_TO_CODE = {
+    "English": "en-US",
+    "日本語": "ja-JP",
+    "Tiếng Việt": "vi-VN",
+    "简体中文": "zh-CN",
+    "繁體中文": "zh-TW",
+    "Bahasa Indonesia": "id-ID",
+    "Filipino": "ph-PH",
+    "한국어": "ko-KR"
+}
+
+CODE_TO_DISPLAY = {v: k for k, v in DISPLAY_TO_CODE.items()}
+
+def load_language(lang_code):
+    global current_lang, translations
+    lang_file = os.path.join(LOCALES_DIR, f"{lang_code}.json")
+    if not os.path.exists(lang_file):
+        lang_file = os.path.join(LOCALES_DIR, "en-US.json")
+        lang_code = "en-US"
+
+    with open(lang_file, "r", encoding="utf-8") as f:
+        translations = json.load(f)
+
+    current_lang = lang_code
+
+def _(key, **kwargs):
+    text = translations.get(key, key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except KeyError:
+            # ignore missing params
+            pass
+    return text
+    
+load_language(user_settings.get("default_language", "en-US"))
 # ---------- Start with Windows ----------
 
 def resource_path(relative_path):
@@ -159,118 +216,185 @@ class WaterReminderApp:
     # ---------- UI ----------
 
     def create_widgets(self):
-        # Start Time
-        tk.Label(self.root, text="Start Time (HH:MM)").grid(
-            row=1, column=0, sticky=tk.W, padx=10, pady=5
+        style = ttk.Style()
+        button_font = tkfont.Font(family="Noto Sans", size=9)
+        style.configure(
+            "Big.TButton",
+            padding=(12, 4, 12, 8),
+            font=button_font
+        )
+
+        # Language selector
+        self.language_label = tk.Label(self.root, text=_("language"))
+        self.language_label.grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+
+        # read current language code from settings
+        current_code = user_settings.get("default_language", "en-US")
+        current_display = CODE_TO_DISPLAY.get(current_code, "English")
+
+        # show the display name in the combobox
+        self.language_display_var = tk.StringVar(value=current_display)
+        self.language_combo = ttk.Combobox(
+            self.root,
+            textvariable=self.language_display_var,
+            values=[
+                "English",
+                "日本語",
+                "Tiếng Việt",
+                "简体中文",
+                "繁體中文",
+                "Bahasa Indonesia",
+                "Filipino",
+                "한국어"
+            ],
+            state="readonly",
+        )
+        self.language_combo.grid(row=1, column=1, padx=10, pady=5, sticky=tk.W)
+        self.language_combo.bind("<<ComboboxSelected>>", self.on_language_changed)
+
+        # --- Start Time ---
+        self.start_time_label = tk.Label(self.root, text=_("start_time"))
+        self.start_time_label.grid(
+            row=2, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.start_time_entry = ttk.Entry(self.root)
         self.start_time_entry.insert(0, user_settings["start_time"])
-        self.start_time_entry.grid(row=1, column=1, padx=10, pady=5)
+        self.start_time_entry.grid(row=2, column=1, padx=10, pady=5)
 
-        # End Time
-        tk.Label(self.root, text="End Time (HH:MM)").grid(
-            row=2, column=0, sticky=tk.W, padx=10, pady=5
+        # --- End Time ---
+        self.end_time_label = tk.Label(self.root, text=_("end_time"))
+        self.end_time_label.grid(
+            row=3, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.end_time_entry = ttk.Entry(self.root)
         self.end_time_entry.insert(0, user_settings["end_time"])
-        self.end_time_entry.grid(row=2, column=1, padx=10, pady=5)
+        self.end_time_entry.grid(row=3, column=1, padx=10, pady=5)
 
-        # Interval
-        tk.Label(self.root, text="Interval (minutes)").grid(
-            row=3, column=0, sticky=tk.W, padx=10, pady=5
+        # --- Interval ---
+        self.interval_label = tk.Label(self.root, text=_("interval"))
+        self.interval_label.grid(
+            row=4, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.interval_entry = ttk.Entry(self.root)
         self.interval_entry.insert(0, user_settings["interval"])
-        self.interval_entry.grid(row=3, column=1, padx=10, pady=5)
+        self.interval_entry.grid(row=4, column=1, padx=10, pady=5)
 
-        # Daily Goal
-        tk.Label(self.root, text="Daily Goal (liters)").grid(
-            row=4, column=0, sticky=tk.W, padx=10, pady=5
+        # --- Daily Goal ---
+        self.daily_goal_label = tk.Label(self.root, text=_("daily_goal"))
+        self.daily_goal_label.grid(
+            row=5, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.daily_goal_entry = ttk.Entry(self.root)
         self.daily_goal_entry.insert(0, user_settings["daily_goal"])
-        self.daily_goal_entry.grid(row=4, column=1, padx=10, pady=5)
+        self.daily_goal_entry.grid(row=5, column=1, padx=10, pady=5)
 
-        # Reminder Amount
-        tk.Label(self.root, text="Reminder Amount (liters)").grid(
-            row=5, column=0, sticky=tk.W, padx=10, pady=5
+        # --- Reminder Amount ---
+        self.reminder_amount_label = tk.Label(self.root, text=_("reminder_amount"))
+        self.reminder_amount_label.grid(
+            row=6, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.reminder_amount_entry = ttk.Entry(self.root)
         self.reminder_amount_entry.insert(0, user_settings["reminder_amount"])
-        self.reminder_amount_entry.grid(row=5, column=1, padx=10, pady=5)
+        self.reminder_amount_entry.grid(row=6, column=1, padx=10, pady=5)
 
-        # Alert sound
-        tk.Label(self.root, text="Alert sound").grid(
-            row=6, column=0, sticky=tk.W, padx=10, pady=5
+        # --- Alert sound ---
+        self.alert_sound_label = tk.Label(self.root, text=_("alert_sound"))
+        self.alert_sound_label.grid(
+            row=7, column=0, sticky=tk.W, padx=10, pady=5
         )
         self.sound_label = tk.Label(
             self.root,
             text=user_settings["sound_file"] or "Default / None"
         )
-        self.sound_label.grid(row=6, column=1, padx=10, pady=5, sticky=tk.W)
+        self.sound_label.grid(row=7, column=1, padx=10, pady=5, sticky=tk.W)
         self.browse_sound_button = ttk.Button(
-            self.root, text="Browse", command=self.choose_sound_file
+            self.root,
+            text=_("browse_sound"),
+            command=self.choose_sound_file,
+            style="Big.TButton",
+            width=14 
         )
-        self.browse_sound_button.grid(row=6, column=2, padx=10, pady=5, sticky=tk.EW)
+        self.browse_sound_button.grid(row=7, column=2, padx=10, pady=5, sticky=tk.EW)
 
-        # Start with Windows
+        # --- Start with Windows ---
         self.start_with_windows_var = tk.BooleanVar(
             value=user_settings["start_with_windows"]
         )
-        self.start_with_windows_check = ttk.Checkbutton(
+
+        self.start_with_windows_check = tk.Checkbutton(
             self.root,
-            text="Start with Windows",
             variable=self.start_with_windows_var
         )
-        self.start_with_windows_check.grid(row=7, column=0, columnspan=2, pady=5)
+        self.start_with_windows_check.grid(
+            row=8, column=0, padx=10, pady=5, sticky=tk.E
+        )
 
-        # Water Drank Label
+        self.start_with_windows_label = tk.Label(
+            self.root,
+            text=_("start_with_windows")
+        )
+        self.start_with_windows_label.grid(
+            row=8, column=1, padx=5, pady=5, sticky=tk.W
+        )
+
+        # --- Water Drank Label ---
         self.water_drank_label = tk.Label(
-            self.root, text=f"Water Drank: {self.total_water_drank} liters"
+            self.root, text=_("water_drank", amount=self.total_water_drank)
         )
-        self.water_drank_label.grid(row=8, column=0, columnspan=3, pady=5)
+        self.water_drank_label.grid(row=9, column=0, columnspan=3, pady=5)
 
-        # Remaining Label
+        # --- Remaining Label ---
         self.remaining_label = tk.Label(self.root, text="")
-        self.remaining_label.grid(row=9, column=0, columnspan=3, pady=5)
+        self.remaining_label.grid(row=10, column=0, columnspan=3, pady=5)
 
-        # Countdown Label
-        self.countdown_label = tk.Label(self.root, text="Next reminder in: --:--")
-        self.countdown_label.grid(row=10, column=0, columnspan=3, pady=5)
+        # --- Countdown Label ---
+        self.countdown_label = tk.Label(self.root, text=_("next_reminder_in_raw", value="--:--"))
+        self.countdown_label.grid(row=11, column=0, columnspan=3, pady=5)
 
-        # Save Button
+        # --- Save / Drink / Clear buttons ---
         self.save_button = ttk.Button(
-            self.root, text="Save Settings", command=self.save_settings
+            self.root,
+            text=_("save_settings"),
+            command=self.save_settings,
+            style="Big.TButton",
+            width=20
         )
-        self.save_button.grid(row=11, column=0, pady=10, padx=10, sticky=tk.EW)
+        self.save_button.grid(row=12, column=0, pady=10, padx=10, sticky=tk.EW)
 
-        # Drink Water Button
         self.drink_water_button = ttk.Button(
-            self.root, text="Drink Water", command=self.drink_water_action
+            self.root,
+            text=_("drink_water"),
+            command=self.drink_water_action,
+            style="Big.TButton",
+            width=20
         )
-        self.drink_water_button.grid(row=11, column=1, padx=10, pady=10, sticky=tk.EW)
+        self.drink_water_button.grid(row=12, column=1, padx=10, pady=10, sticky=tk.EW)
 
-        # Clear Logs Button
         self.clear_logs_button = ttk.Button(
-            self.root, text="Clear Logs", command=self.clear_logs_action
+            self.root,
+            text=_("clear_logs"),
+            command=self.clear_logs_action,
+            style="Big.TButton",
+            width=20
         )
-        self.clear_logs_button.grid(row=11, column=2, padx=10, pady=10, sticky=tk.EW)
+        self.clear_logs_button.grid(row=12, column=2, padx=10, pady=10, sticky=tk.EW)
 
-        # Log Messages
-        tk.Label(self.root, text="Log Messages").grid(
-            row=12, column=0, columnspan=3, sticky=tk.W, padx=10
+        # --- Log Messages ---
+        self.log_label = tk.Label(self.root, text=_("log_messages"))
+        self.log_label.grid(
+            row=13, column=0, columnspan=3, sticky=tk.W, padx=10
         )
         self.log_text = scrolledtext.ScrolledText(
             self.root, wrap=tk.WORD, width=60, height=10
         )
-        self.log_text.grid(row=13, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
+        self.log_text.grid(row=14, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
 
-        # Social / links
+        # --- Social / links ---
         self.social_frame = tk.Frame(self.root)
-        self.social_frame.grid(row=14, column=0, columnspan=3, pady=10)
+        self.social_frame.grid(row=15, column=0, columnspan=3, pady=10)
 
         self.github_icon = tk.Label(
-            self.social_frame, text="GitHub", fg="blue", cursor="hand2"
+            self.social_frame, text=_("github"), fg="blue", cursor="hand2"
         )
         self.github_icon.grid(row=0, column=0, padx=5)
         self.github_icon.bind(
@@ -279,7 +403,7 @@ class WaterReminderApp:
         )
 
         self.website_icon = tk.Label(
-            self.social_frame, text="Website", fg="blue", cursor="hand2"
+            self.social_frame, text=_("website"), fg="blue", cursor="hand2"
         )
         self.website_icon.grid(row=0, column=1, padx=5)
         self.website_icon.bind(
@@ -288,7 +412,7 @@ class WaterReminderApp:
         )
 
         self.giwish_icon = tk.Label(
-            self.social_frame, text="Genshin Wish Simulator", fg="blue", cursor="hand2"
+            self.social_frame, text=_("giwish"), fg="blue", cursor="hand2"
         )
         self.giwish_icon.grid(row=0, column=2, padx=5)
         self.giwish_icon.bind(
@@ -297,7 +421,7 @@ class WaterReminderApp:
         )
 
         self.hsr_icon = tk.Label(
-            self.social_frame, text="HSR Warp Simulator", fg="blue", cursor="hand2"
+            self.social_frame, text=_("hsr"), fg="blue", cursor="hand2"
         )
         self.hsr_icon.grid(row=0, column=3, padx=5)
         self.hsr_icon.bind(
@@ -309,12 +433,14 @@ class WaterReminderApp:
 
     def update_water_drank_label(self):
         self.water_drank_label.config(
-            text=f"Water Drank: {self.total_water_drank} liters"
+            text=_("water_drank", amount=self.total_water_drank)
         )
 
     def update_remaining_label(self):
         remaining = self.daily_goal - self.total_water_drank
-        self.remaining_label.config(text=f"Remaining: {remaining} liters")
+        self.remaining_label.config(
+            text=_("remaining", amount=remaining)
+        )
 
     def show_settings_saved_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -343,6 +469,39 @@ class WaterReminderApp:
         dialog.after(3000, close_dialog)
 
     # ---------- Settings / actions ----------
+    
+    def on_language_changed(self, event=None):
+        display_name = self.language_display_var.get()
+        new_lang = DISPLAY_TO_CODE.get(display_name, "en-US")
+
+        user_settings["default_language"] = new_lang
+        save_user_settings()
+        load_language(new_lang)
+        self.update_ui_language()
+
+    def update_ui_language(self):
+        # Static labels
+        self.language_label.config(text=_("language"))
+        self.start_time_label.config(text=_("start_time"))
+        self.end_time_label.config(text=_("end_time"))
+        self.interval_label.config(text=_("interval"))
+        self.daily_goal_label.config(text=_("daily_goal"))
+        self.reminder_amount_label.config(text=_("reminder_amount"))
+        self.alert_sound_label.config(text=_("alert_sound"))
+        self.browse_sound_button.config(text=_("browse_sound"))
+        self.start_with_windows_label.config(text=_("start_with_windows"))
+        self.log_label.config(text=_("log_messages"))
+        self.github_icon.config(text=_("github"))
+        self.website_icon.config(text=_("website"))
+        self.giwish_icon.config(text=_("giwish"))
+        self.hsr_icon.config(text=_("hsr"))
+        self.save_button.config(text=_("save_settings"))
+        self.drink_water_button.config(text=_("drink_water"))
+        self.clear_logs_button.config(text=_("clear_logs"))
+
+        # Dynamic labels
+        self.update_water_drank_label()
+        self.update_remaining_label()
 
     def save_settings(self):
         user_settings["start_time"] = self.start_time_entry.get()
@@ -420,7 +579,7 @@ class WaterReminderApp:
         total_seconds = int(remaining.total_seconds())
         minutes, seconds = divmod(total_seconds, 60)
         self.countdown_label.config(
-            text=f"Next reminder in: {minutes:02d}:{seconds:02d}"
+            text=_("next_reminder_in", mm=f"{minutes:02d}", ss=f"{seconds:02d}")
         )
 
         self.root.after(1000, self.update_countdown_label)
@@ -542,5 +701,9 @@ class WaterReminderApp:
 
 if __name__ == "__main__":
     root = ttk.Window(themename="cosmo")
+    font_path = Path(BASE_DIR) / "fonts" / "NotoSans-Regular.ttf"
+    default_font = tkfont.nametofont("TkDefaultFont")
+    default_font.configure(family="Noto Sans", size=9)
+    root.option_add("*Font", default_font)
     app = WaterReminderApp(root)
     root.mainloop()
