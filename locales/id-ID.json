@@ -15,6 +15,7 @@
   "drink_water": "Minum air",
   "clear_logs": "Hapus riwayat",
   "log_messages": "Riwayat",
+  "log_drink": "{time}: Minum {amount} liter air",
   "settings_saved_title": "Pengaturan disimpan",
   "settings_saved_message": "Pengaturan Anda telah disimpan.",
   "minimize_title": "Minimalkan ke tray",

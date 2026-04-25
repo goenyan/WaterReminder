@@ -15,6 +15,7 @@
   "drink_water": "Uống nước",
   "clear_logs": "Xóa lịch sử",
   "log_messages": "Lịch sử",
+  "log_drink": "{time}: Đã uống {amount} lít",
   "settings_saved_title": "Đã lưu cài đặt",
   "settings_saved_message": "Cài đặt của bạn đã được lưu.",
   "minimize_title": "Thu nhỏ xuống khay",

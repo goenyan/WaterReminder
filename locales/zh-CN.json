@@ -15,6 +15,7 @@
   "drink_water": "喝水",
   "clear_logs": "清除记录",
   "log_messages": "记录",
+  "log_drink": "{time}: 喝了 {amount} 升水",
   "settings_saved_title": "设置已保存",
   "settings_saved_message": "你的设置已保存。",
   "minimize_title": "最小化到托盘",

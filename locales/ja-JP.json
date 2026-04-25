@@ -15,6 +15,7 @@
   "drink_water": "水を飲む",
   "clear_logs": "ログを削除",
   "log_messages": "ログ",
+  "log_drink": "{time}: {amount} リットル飲みました",
   "settings_saved_title": "保存しました",
   "settings_saved_message": "設定を保存しました。",
   "minimize_title": "トレイに最小化",

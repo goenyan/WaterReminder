@@ -15,6 +15,7 @@
   "drink_water": "Drink Water",
   "clear_logs": "Clear Logs",
   "log_messages": "Log Messages",
+  "log_drink": "{time}: Drank {amount} liters",
   "settings_saved_title": "Settings Saved",
   "settings_saved_message": "Your settings have been saved.",
   "minimize_title": "Minimize to tray",

@@ -15,6 +15,7 @@
   "drink_water": "Uminom ng tubig",
   "clear_logs": "I-clear ang logs",
   "log_messages": "Mga log message",
+  "log_drink": "{time}: Uminom ng {amount} litro ng tubig",
   "settings_saved_title": "Na-save na ang mga setting",
   "settings_saved_message": "Ang iyong mga setting ay naisave na",
   "minimize_title": "I-minimize sa tray",

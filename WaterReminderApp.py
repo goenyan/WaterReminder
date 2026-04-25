@@ -19,13 +19,18 @@ from pathlib import Path
 
 # ---------- Paths and sound setup ----------
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+def get_base_dir():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
 
-# Create Sound Alert Folder
-SOUND_DIR = os.path.join(BASE_DIR, "sound")
+BASE_DIR = get_base_dir()
+
+SOUND_DIR = os.path.join(BASE_DIR, "sounds")
 os.makedirs(SOUND_DIR, exist_ok=True)
 
-# Init pygame mixer for mp3/wav
+log_file = os.path.join(BASE_DIR, "water_intake_log.txt")
+
 pygame.mixer.init()
 
 # ---------- User settings ----------
@@ -51,7 +56,7 @@ else:
 for k, v in default_settings.items():
     user_settings.setdefault(k, v)
 
-log_file = "water_intake_log.txt"
+log_file = os.path.join(BASE_DIR, "water_intake_log.txt")
 
 
 def save_user_settings():
@@ -63,6 +68,7 @@ def save_user_settings():
 import locale
 
 LOCALES_DIR = os.path.join(BASE_DIR, "locales")
+
 current_lang = user_settings.get("default_language", "en-US")
 translations = {}
 
@@ -502,6 +508,7 @@ class WaterReminderApp:
         # Dynamic labels
         self.update_water_drank_label()
         self.update_remaining_label()
+        self.display_log_messages()
 
     def save_settings(self):
         user_settings["start_time"] = self.start_time_entry.get()
@@ -522,12 +529,18 @@ class WaterReminderApp:
     def drink_water_action(self):
         amount = float(self.reminder_amount_entry.get())
         self.total_water_drank += amount
-        with open(log_file, "a") as f:
-            f.write(f"{datetime.now()}: Drank {amount} liters\n")
+
+        entry = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "type": "drink",
+            "amount": amount
+        }
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
         self.update_water_drank_label()
         self.update_remaining_label()
         self.display_log_messages()
-
         self.reset_timer_from_now()
 
     def clear_logs_action(self):
@@ -536,10 +549,33 @@ class WaterReminderApp:
 
     def display_log_messages(self):
         self.log_text.delete('1.0', tk.END)
-        if os.path.exists(log_file):
-            with open(log_file, "r") as f:
-                log_content = f.read()
-            self.log_text.insert(tk.END, log_content)
+        if not os.path.exists(log_file):
+            return
+
+        lines_out = []
+        with open(log_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    lines_out.append(line)
+                    continue
+
+                if entry.get("type") == "drink":
+                    ts = entry.get("timestamp", "")
+                    amount = entry.get("amount", 0)
+
+                    text = _("log_drink", time=ts, amount=amount)
+                    lines_out.append(text)
+                else:
+                    lines_out.append(line)
+
+        if lines_out:
+            self.log_text.insert(tk.END, "\n".join(lines_out) + "\n")
 
     # ---------- Timer / reminder logic ----------
 
@@ -629,17 +665,8 @@ class WaterReminderApp:
                         pygame.mixer.music.load(path)
                         pygame.mixer.music.play()
                         return
-                    except Exception as e:
-                        with open(log_file, "a") as f:
-                            f.write(
-                                f"{datetime.now()}: Error playing sound {name}: {e}\n"
-                            )
-
-            with open(log_file, "a") as f:
-                f.write(
-                    f"{datetime.now()}: No valid sound file found. "
-                    f"Tried: {candidates}\n"
-                )
+                    except Exception:
+                        continue
 
         threading.Thread(target=play_sound_with_fallback, daemon=True).start()
 
@@ -695,7 +722,6 @@ class WaterReminderApp:
         user_settings["sound_file"] = filename
         self.sound_label.config(text=filename)
         save_user_settings()
-
 
 # ---------- Main ----------
 

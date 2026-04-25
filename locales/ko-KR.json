@@ -15,6 +15,7 @@
   "drink_water": "물 마시기",
   "clear_logs": "기록 지우기",
   "log_messages": "기록",
+  "log_drink": "{time}: 물 {amount}리터를 마셨습니다",
   "settings_saved_title": "설정이 저장되었습니다",
   "settings_saved_message": "설정이 저장되었습니다.",
   "minimize_title": "트레이로 최소화",
