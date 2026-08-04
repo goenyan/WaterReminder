@@ -13,3 +13,5 @@ settings.json
 /.venv
 goi-goi-toi-cong-chuyen.mp3
 migrate_log.py
+water_intake_log.txt
+settings.json
